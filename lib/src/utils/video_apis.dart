@@ -12,14 +12,32 @@ String podErrorString(String val) {
 }
 
 class VideoApis {
-  static Future<Response> _makeRequestHash(String videoId, String? hash) {
+  static Future<Response> _makeRequestHash(
+    String videoId,
+    String? hash,
+    String? vimeoToken,
+  ) {
     if (hash == null) {
+      // return http.get(
+      //   Uri.parse('https://player.vimeo.com/video/$videoId/config'),
+      // );
       return http.get(
-        Uri.parse('https://player.vimeo.com/video/$videoId/config'),
+        Uri.parse('https://api.vimeo.com/videos/$videoId'),
+        headers: {
+          'Authorization': 'bearer ${vimeoToken ?? ''}',
+          'Accept': 'application/vnd.vimeo.*+json;version=3.4',
+        },
       );
     } else {
+      // return http.get(
+      //   Uri.parse('https://player.vimeo.com/video/$videoId/config?h=$hash'),
+      // );
       return http.get(
-        Uri.parse('https://player.vimeo.com/video/$videoId/config?h=$hash'),
+        Uri.parse('https://api.vimeo.com/videos/$videoId'),
+        headers: {
+          'Authorization': 'bearer ${vimeoToken ?? ''}',
+          'Accept': 'application/vnd.vimeo.*+json;version=3.4',
+        },
       );
     }
   }
@@ -27,45 +45,27 @@ class VideoApis {
   static Future<List<VideoQalityUrls>?> getVimeoVideoQualityUrls(
     String videoId,
     String? hash,
+    String? vimeoToken,
   ) async {
     try {
-      final response = await _makeRequestHash(videoId, hash);
-      final jsonData = jsonDecode(response.body)['request']['files'];
-      final dashData = jsonData['dash'];
-      final hlsData = jsonData['hls'];
-      final defaultCDN = hlsData['default_cdn'];
-      final cdnVideoUrl = (hlsData['cdns'][defaultCDN]['url'] as String?) ?? '';
+      final response = await _makeRequestHash(videoId, hash, vimeoToken);
+      // final jsonData = jsonDecode(response.body);
+      final jsonData = jsonDecode(response.body)['play'];
+      // final dashData = jsonData['dash'];
+      // final hlsData = jsonData['hls'];
       final List<dynamic> rawStreamUrls =
-          (dashData['streams'] as List<dynamic>?) ?? <dynamic>[];
+          (jsonData['progressive'] as List<dynamic>?) ?? <dynamic>[];
 
       final List<VideoQalityUrls> vimeoQualityUrls = [];
 
       for (final item in rawStreamUrls) {
-        final sepList = cdnVideoUrl.split('/sep/video/');
-        final firstUrlPiece = sepList.firstOrNull ?? '';
-        final lastUrlPiece =
-            ((sepList.lastOrNull ?? '').split('/').lastOrNull) ??
-                (sepList.lastOrNull ?? '');
-        final String urlId =
-            ((item['id'] ?? '') as String).split('-').firstOrNull ?? '';
         vimeoQualityUrls.add(
           VideoQalityUrls(
-            quality: int.parse(
-              (item['quality'] as String?)?.split('p').first ?? '0',
-            ),
-            url: '$firstUrlPiece/sep/video/$urlId/$lastUrlPiece',
+            quality: (item['height'] as int) ?? 0,
+            url: item['link'] as String,
           ),
         );
       }
-      if (vimeoQualityUrls.isEmpty) {
-        vimeoQualityUrls.add(
-          VideoQalityUrls(
-            quality: 720,
-            url: cdnVideoUrl,
-          ),
-        );
-      }
-
       return vimeoQualityUrls;
     } catch (error) {
       if (error.toString().contains('XMLHttpRequest')) {
@@ -79,6 +79,62 @@ class VideoApis {
       rethrow;
     }
   }
+
+  // static Future<List<VideoQalityUrls>?> getVimeoVideoQualityUrls(
+  //   String videoId,
+  //   String? hash,
+  // ) async {
+  //   try {
+  //     final response = await _makeRequestHash(videoId, hash);
+  //     final jsonData = jsonDecode(response.body)['request']['files'];
+  //     final dashData = jsonData['dash'];
+  //     final hlsData = jsonData['hls'];
+  //     final defaultCDN = hlsData['default_cdn'];
+  //     final cdnVideoUrl = (hlsData['cdns'][defaultCDN]['url'] as String?) ?? '';
+  //     final List<dynamic> rawStreamUrls =
+  //         (dashData['streams'] as List<dynamic>?) ?? <dynamic>[];
+
+  //     final List<VideoQalityUrls> vimeoQualityUrls = [];
+
+  //     for (final item in rawStreamUrls) {
+  //       final sepList = cdnVideoUrl.split('/sep/video/');
+  //       final firstUrlPiece = sepList.firstOrNull ?? '';
+  //       final lastUrlPiece =
+  //           ((sepList.lastOrNull ?? '').split('/').lastOrNull) ??
+  //               (sepList.lastOrNull ?? '');
+  //       final String urlId =
+  //           ((item['id'] ?? '') as String).split('-').firstOrNull ?? '';
+  //       vimeoQualityUrls.add(
+  //         VideoQalityUrls(
+  //           quality: int.parse(
+  //             (item['quality'] as String?)?.split('p').first ?? '0',
+  //           ),
+  //           url: '$firstUrlPiece/sep/video/$urlId/$lastUrlPiece',
+  //         ),
+  //       );
+  //     }
+  //     if (vimeoQualityUrls.isEmpty) {
+  //       vimeoQualityUrls.add(
+  //         VideoQalityUrls(
+  //           quality: 720,
+  //           url: cdnVideoUrl,
+  //         ),
+  //       );
+  //     }
+
+  //     return vimeoQualityUrls;
+  //   } catch (error) {
+  //     if (error.toString().contains('XMLHttpRequest')) {
+  //       log(
+  //         podErrorString(
+  //           '(INFO) To play vimeo video in WEB, Please enable CORS in your browser',
+  //         ),
+  //       );
+  //     }
+  //     debugPrint('===== VIMEO API ERROR: $error ==========');
+  //     rethrow;
+  //   }
+  // }
 
   static Future<List<VideoQalityUrls>?> getVimeoPrivateVideoQualityUrls(
     String videoId,
@@ -138,8 +194,10 @@ class VideoApis {
           ),
         );
       } else {
-        final manifest =
-            await yt.videos.streamsClient.getManifest(youtubeIdOrUrl);
+        final manifest = await yt.videos.streamsClient.getManifest(
+          youtubeIdOrUrl,
+          fullManifest: true,
+        );
         urls.addAll(
           manifest.muxed.map(
             (element) => VideoQalityUrls(

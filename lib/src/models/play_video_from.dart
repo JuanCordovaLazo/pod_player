@@ -14,6 +14,7 @@ class PlayVideoFrom {
   final VideoPlayerOptions? videoPlayerOptions;
   final Map<String, String> httpHeaders;
   final bool live;
+  final String? vimeoToken;
 
   const PlayVideoFrom._({
     required this.playerType,
@@ -27,6 +28,7 @@ class PlayVideoFrom {
     this.closedCaptionFile,
     this.videoPlayerOptions,
     this.httpHeaders = const {},
+    this.vimeoToken,
   });
 
   factory PlayVideoFrom.network(
@@ -83,6 +85,7 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? vimeoToken,
   }) {
     return PlayVideoFrom._(
       playerType: PodVideoPlayerType.vimeo,
@@ -92,6 +95,7 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      vimeoToken: vimeoToken,
     );
   }
 
